@@ -32,29 +32,16 @@ The framework comprises two complementary phases:
 ## Repository Structure
 
 ```
-├── configs/
-│   └── config.yaml                  # API keys and hyperparameter settings
-├── data/
-│   └── sample/                      # Sample dataset (full data via AI Hub)
-├── notebooks/
-│   ├── 01_data_preprocessing.ipynb  # NearMiss undersampling, feature selection
-│   ├── 02_xgboost_baseline.ipynb    # XGBoost training and Optuna tuning
-│   ├── 03_cf_generation.ipynb       # DiCE-based CF generation with Immutable Features
-│   ├── 04_cf_selection.ipynb        # Quality Score computation and best CF selection
-│   └── 05_multiagent_pipeline.ipynb # Three-stage LLM Multi-Agent report generation
-├── src/
-│   ├── preprocessing.py             # Data loading and NearMiss undersampling
-│   ├── model.py                     # XGBoost training and evaluation
-│   ├── cf_generator.py              # DiCE CF generation with domain constraints
-│   ├── cf_evaluator.py              # Quality Score metrics (Validity, Proximity, etc.)
-│   ├── agents/
-│   │   ├── agent1_interpreter.py    # CF Quality Interpreter
-│   │   ├── agent2_generator.py      # Consulting Report Generator with RAG + Guardrail
-│   │   └── agent3_evaluator.py      # Ensemble QA (Mixture of Experts, 6 personas)
-│   └── utils/
-│       ├── financial_mapping.py     # Encrypted variable name → financial term mapping
-│       └── guardrail.py             # Logic Guardrail rules for numerical consistency
-├── requirements.txt
+├── Step1_Preprocessing.ipynb                   # Data loading and NearMiss undersampling
+├── Step2_Modeling.ipynb                        # XGBoost training and Optuna tuning
+├── Step3_DiCE.ipynb                            # DiCE CF generation with Immutable Features constraint
+├── Step4_evaluate_single_cf.ipynb              # Quality Score computation and best CF selection
+├── Step5_Agent #1_CF Quality Interpreter.ipynb # Agent #1: CF Quality Interpreter
+├── Step6_Agent #2_consulting_generator.ipynb   # Agent #2: Consulting Report Generator (RAG + Guardrail)
+├── Step7_Agent #3_Report_QA_Agent.ipynb        # Agent #3: Ensemble QA Evaluator (MoE, 6 Personas)
+├── Step8_Generate_Figure3.ipynb                # Figure generation for paper
+├── .gitignore
+├── LICENSE
 └── README.md
 ```
 
@@ -97,56 +84,52 @@ The dataset is sourced from **AI Hub** (aihub.or.kr), constructed with support f
 - **After NearMiss undersampling**: 532 firms (266 : 266, balanced)
 - **Features used**: 64 financial and non-financial variables
 
-> ⚠️ Due to AI Hub usage restrictions, only a anonymized sample dataset is provided in this repository.
+> ⚠️ Due to AI Hub usage restrictions, only an anonymized sample dataset is provided in this repository.
 > Full dataset access: [https://www.aihub.or.kr](https://www.aihub.or.kr)
 
 ---
 
 ## Quick Start
 
-### 1. Configure API Key
+### 1. Set your OpenAI API Key
 
-```yaml
-# configs/config.yaml
-openai:
-  api_key: "YOUR_OPENAI_API_KEY"
-  model: "gpt-4o-mini-2024-07-18"
+Set your OpenAI API key as an environment variable or directly in each notebook:
+
+```python
+import openai
+openai.api_key = "YOUR_OPENAI_API_KEY"
 ```
 
 ### 2. Run Notebooks in Order
 
-```
-01_data_preprocessing   → Preprocessing and NearMiss undersampling
-02_xgboost_baseline     → XGBoost training (AUC: 0.9710, F1: 0.9307)
-03_cf_generation        → CF generation with Immutable Features constraint
-04_cf_selection         → Quality Score-based best CF selection (+67.7% Proximity)
-05_multiagent_pipeline  → Consulting report generation for all 266 rejected firms
-```
-
-### 3. Expected Output
-
-For each rejected firm, the pipeline produces:
-- **Optimal CF scenario**: Target financial values with quality metrics
-- **Consulting report**: 6-section structured report (Executive Summary, Current Status, Improvement Scenario, Action Roadmap, Risk Factors, Overall Assessment)
-- **Quality grade**: Pass / Conditional Pass / Reject with detailed dimension scores
+| Step | Notebook | Description | Key Output |
+|---|---|---|---|
+| 1 | `Step1_Preprocessing` | NearMiss undersampling, feature selection | Balanced dataset (532 firms) |
+| 2 | `Step2_Modeling` | XGBoost training + Optuna hyperparameter tuning | AUC 0.9710 / F1 0.9307 |
+| 3 | `Step3_DiCE` | CF generation with Immutable Features constraint | 1,064 CF candidates |
+| 4 | `Step4_evaluate_single_cf` | Quality Score-based best CF selection | 266 optimal CFs (+67.7% Proximity) |
+| 5 | `Step5_Agent #1` | CF Quality Interpreter | Business implication JSON outputs |
+| 6 | `Step6_Agent #2` | Consulting Report Generator (RAG + Guardrail) | 266 structured consulting reports |
+| 7 | `Step7_Agent #3` | Ensemble QA Evaluator (MoE, 6 personas) | Pass / Conditional Pass / Reject grades |
+| 8 | `Step8_Generate_Figure3` | t-SNE visualization of recourse paths | Figure 3 in the paper |
 
 ---
 
 ## Framework
 
 ```
-[Rejected Firm] 
+[Rejected Firm]
       │
       ▼
 ┌─────────────────────────────────────────┐
 │              PHASE 1                    │
-│  XGBoost Bankruptcy Predictor           │
+│  Step 2: XGBoost Bankruptcy Predictor   │
 │       ↓                                 │
-│  DiCE CF Generation                     │
+│  Step 3: DiCE CF Generation             │
 │  (Genetic Algorithm +                   │
 │   Immutable Features Constraint)        │
 │       ↓                                 │
-│  Quality Score Selection                │
+│  Step 4: Quality Score Selection        │
 │  (Validity / Proximity / Sparsity /     │
 │   Realism / Robustness)                 │
 └─────────────────────────────────────────┘
@@ -154,13 +137,13 @@ For each rejected firm, the pipeline produces:
       ▼
 ┌─────────────────────────────────────────┐
 │              PHASE 2                    │
-│  Agent #1: CF Quality Interpreter       │
+│  Step 5: Agent #1 Interpreter           │
 │  (Numerical → Business Implication)     │
 │       ↓                                 │
-│  Agent #2: Consulting Report Generator  │
+│  Step 6: Agent #2 Report Generator      │
 │  (RAG + Logic Guardrail)                │
 │       ↓                                 │
-│  Agent #3: Ensemble QA Evaluator        │
+│  Step 7: Agent #3 Ensemble QA           │
 │  (Mixture of Experts, 6 Personas)       │
 └─────────────────────────────────────────┘
       │
@@ -204,17 +187,8 @@ The following 8 variables are fixed as **Immutable Features** during CF optimiza
 
 ## Citation
 
-BibTeX will be added upon acceptance.
-
 ```bibtex
-@article{author2025algorithmic,
-  title     = {Algorithmic Recourse for Corporate Credit Insurance Underwriting
-               via Counterfactual XAI and Multi-Agent LLMs},
-  author    = {[Authors]},
-  journal   = {Expert Systems with Applications},
-  year      = {2025},
-  note      = {Under review}
-}
+
 ```
 
 ---
