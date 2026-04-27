@@ -7,7 +7,7 @@
 
 This repository contains the official implementation of the paper:
 
-> **"Beyond Bankruptcy Prediction: Algorithmic Recourse via Constrained Counterfactual XAI and Multi-Agent LLM in Credit Insurance Underwriting"**
+> **"Algorithmic Recourse in Corporate Credit Insurance Underwriting: Domain-Constrained Counterfactual Generation and Multi-Agent LLM Report Synthesis"**
 
 AI-based bankruptcy prediction models have become central tools for risk management in financial industries. However, their binary rejection-oriented decisions leave rejected firms with no actionable guidance. This work proposes an **Algorithmic Recourse** framework that automatically generates actionable financial improvement roadmaps for rejected companies, going beyond mere prediction.
 
