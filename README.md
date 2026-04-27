@@ -1,5 +1,5 @@
-# Beyond Bankruptcy Prediction: Algorithmic Recourse for Corporate Credit Insurance Underwriting
-## via Constrained Counterfactual XAI and Multi-Agent LLMs
+# Algorithmic Recourse in Corporate Credit Insurance Underwriting:
+## Domain-Constrained Counterfactual Generation and Multi-Agent LLM Report Synthesis
 
 ---
 
