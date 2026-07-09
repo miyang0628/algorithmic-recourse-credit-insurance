@@ -1,0 +1,2 @@
+﻿n_total,n_bankrupt_total,n_resampled,cv_auc,test_auc,test_f1,test_recall,test_tp,test_total_bankrupt
+147724,2070,4140,0.9427057689048836,0.9390184134985646,0.8672566371681416,0.8285024154589372,343,414
