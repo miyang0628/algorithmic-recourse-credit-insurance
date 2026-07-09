@@ -1,60 +1,88 @@
-# Algorithmic Recourse in Corporate Credit Insurance Underwriting:
-## Domain-Constrained Counterfactual Generation and Multi-Agent LLM Report Synthesis
-
----
-
 ## Overview
 
-This repository contains the official implementation of the paper:
+This repository contains the implementation of an extended, multi-industry
+version of:
 
 > **"Algorithmic Recourse in Corporate Credit Insurance Underwriting: Domain-Constrained Counterfactual Generation and Multi-Agent LLM Report Synthesis"**
 
-AI-based bankruptcy prediction models have become central tools for risk management in financial industries. However, their binary rejection-oriented decisions leave rejected firms with no actionable guidance. This work proposes an **Algorithmic Recourse** framework that automatically generates actionable financial improvement roadmaps for rejected companies, going beyond mere prediction.
+AI-based bankruptcy prediction models have become central tools for risk
+management in financial industries. However, their binary rejection-oriented
+decisions leave rejected firms with no actionable guidance. This work
+proposes an **Algorithmic Recourse** framework that automatically generates
+actionable financial improvement roadmaps for rejected companies, going
+beyond mere prediction.
+
+This implementation extends the original single-industry framework to
+**four industries** (wholesale trade, retail trade, real estate, and
+construction), applies **industry-specific personas** throughout the
+multi-agent pipeline, and introduces a **Verify-then-Judge** architecture
+for the CF Alignment evaluation dimension, addressing a structural
+limitation identified in the original single-agent-call design.
 
 The framework comprises two complementary phases:
 
-- **Phase 1 — Counterfactual Scenario Generation**: A Genetic Algorithm-based DiCE framework with domain-specific *Immutable Features* constraints to derive causally consistent financial improvement scenarios, evaluated via a five-metric Quality Score (Validity, Proximity, Sparsity, Realism, Robustness).
-- **Phase 2 — Multi-Agent LLM Pipeline**: A three-stage LLM pipeline (Interpreter → Generator → Evaluator) combining Logic Guardrails and Retrieval-Augmented Generation (RAG) to automatically translate numerical CF scenarios into practitioner-ready consulting reports.
+- **Phase 1 — Counterfactual Scenario Generation**: A Genetic Algorithm-based
+  DiCE framework with domain-specific *Immutable Features* constraints
+  (redefined here as year-over-year growth-rate variables, consistent with a
+  ratio-based feature representation) to derive causally consistent financial
+  improvement scenarios, evaluated via a five-metric Quality Score (Validity,
+  Proximity, Sparsity, Realism, Robustness).
+- **Phase 2 — Multi-Agent LLM Pipeline**: A three-stage LLM pipeline
+  (Interpreter → Generator → Evaluator) combining Logic Guardrails and
+  industry-specific personas to translate numerical CF scenarios into
+  practitioner-ready consulting reports. The Evaluator's CF Alignment
+  dimension uses a **Verify-then-Judge** design: numeric extraction (LLM),
+  ground-truth matching (deterministic Python), and score assignment
+  (deterministic rubric) are separated into distinct stages, rather than
+  delegating extraction, comparison, and scoring to a single LLM call.
 
-### Key Results (G46 Wholesale Industry, n = 266)
+### Key Results (4-Industry Extension: G46 Wholesale, G47 Retail, L68 Real Estate, F42 Construction)
 
 | Metric | Result |
 |---|---|
-| Proximity improvement over random generation | **−67.7%** (0.004 → 0.001) |
-| Approval-ready CF scenarios generated | **100%** (266/266) |
-| Consulting reports usable in practice (Pass + Conditional Pass) | **78.9%** (210/266) |
+| Bankruptcy prediction model | AUC 0.9885 (NearMiss applied prior to split, consistent with prior work on this dataset; see *Methodological Notes* below for a leakage-corrected comparison) |
+| CF generation success rate (post data-cleaning) | 77.2% (640/829 firms across 4 industries) |
+| Physically-valid, optimal CFs selected | 542 firms |
+| Consulting reports usable in practice (Pass + Conditional Pass) | 76.2% (413/542) |
+| CF Alignment mean score (Verify-then-Judge vs. single-call baseline) | 3.05 vs. ~2.0 |
 
 ---
 
 ## Repository Structure
 
 ```
-├── Step1_Preprocessing.ipynb                    # Data loading and NearMiss undersampling
-├── Step2_Modeling.ipynb                         # XGBoost training and Optuna tuning
-├── Step3_DiCE.ipynb                             # DiCE CF generation with Immutable Features constraint
-├── Step4_evaluate_single_cf.ipynb               # Quality Score computation and best CF selection
-├── Step5_Agent #1_CF Quality Interpreter.ipynb  # Agent #1: CF Quality Interpreter
-├── Step6_Agent #2_consulting_generator.ipynb    # Agent #2: Consulting Report Generator (RAG + Guardrail)
-├── Step7_Agent #3_Report_QA_Agent.ipynb         # Agent #3: Ensemble QA Evaluator (MoE, 6 Personas)
-├── Step8_Generate_Figure5.ipynb                 # t-SNE recourse path visualisation (Figure 5 in paper)
-├── Step9_Generate_Figure6.ipynb                 # Quality evaluation results visualisation (Figure 6 in paper)
+├── notebooks/
+│   ├── Step1_Preprocessing.ipynb                    # Sentinel-value cleanup, ratio conversion, outlier filtering
+│   ├── Step2_Modeling.ipynb                         # XGBoost training and Optuna tuning (full corpus, no industry filter)
+│   ├── Step3_DiCE.ipynb                             # DiCE CF generation (4-industry subset, Immutable Features constraint)
+│   ├── Step3B_CF_Selection_Ablation.ipynb           # Selection-strategy ablation (A: no constraint+random, B: constraint+random, C: constraint+Quality Score)
+│   ├── Step4_evaluate_single_cf.ipynb                # Quality Score computation, best-CF selection, physical-validity gate
+│   ├── Step5_Agent1_CF_Quality_Interpreter.ipynb    # Agent #1: CF Quality Interpreter (industry personas, directional guardrail)
+│   ├── Step6_Agent2_consulting_generator.ipynb      # Agent #2: Consulting Report Generator (Logic Guardrail + industry personas)
+│   ├── Step7_Agent3_Report_QA_Agent.ipynb           # Agent #3: Ensemble QA Evaluator (MoE, 6 personas; CF Alignment = Verify-then-Judge)
+│   ├── Step8_Generate_Figure5.ipynb                 # t-SNE recourse-path visualisation, 4-industry, actual-model-probability coloring
+│   └── Step9_Generate_Figure6.ipynb                 # Quality evaluation results visualisation, 4-industry
 │
-├── data/                                        # Intermediate & output files (generated by notebooks)
-│   ├── resampled_data_final.csv                 # Balanced dataset after NearMiss undersampling (Step 1)
-│   ├── selected_data_for_modeling.csv           # Feature-selected dataset (Step 1)
-│   ├── feature_names.pkl                        # Selected feature name list (Step 1)
-│   ├── X_test_final.csv                         # Test set features (Step 2)
-│   ├── y_test_final.csv                         # Test set labels (Step 2)
-│   ├── base_model_final.pkl                     # Trained XGBoost model (Step 2)
-│   ├── base_model_threshold_final.pkl           # Optimal decision threshold (Step 2)
-│   ├── selected_features_final.pkl              # Final feature list for CF generation (Step 2)
-│   ├── cf_results_full.csv                      # Raw DiCE CF candidates, n=1,064 (Step 3)
-│   ├── thesis_metric_comparison.csv             # CF quality metrics: raw vs. selected (Step 4)
-│   ├── agent1_interpretation_results.csv        # Agent #1 JSON interpretation outputs (Step 5)
-│   ├── agent2_consulting_reports.csv            # Agent #2 consulting reports, n=266 (Step 6)
-│   ├── agent3_ensemble_results.csv              # Agent #3 raw MoE evaluation scores (Step 7)
-│   └── agent3_ensemble_results_fixed.csv        # Agent #3 final grades after calibration (Step 7)
+├── data/                                            # Intermediate & output files (generated by notebooks)
+│   ├── 202207_corpor_CB.csv                         # Raw source data (not included — see Data section)
+│   ├── selected_data_for_modeling_full_ratio_clean.csv  # Full-corpus, sentinel-cleaned, ratio-transformed dataset (Step 1)
+│   ├── feature_names_full_ratio_clean.pkl           # Final 62-feature list (Step 1)
+│   ├── resampled_data_final_full.csv                # NearMiss-balanced training set (Step 2)
+│   ├── X_test_final_full.csv / y_test_final_full.csv  # Held-out test set (Step 2)
+│   ├── cf_results_4industry.csv                     # Raw DiCE CF candidates, 4-industry subset (Step 3)
+│   ├── ablation_condA/B/C_full.csv                  # Per-condition selected CFs (Step 3B)
+│   ├── cf_results_filtered_4industry.csv            # Optimal CFs after Quality Score + physical-validity selection (Step 4)
+│   ├── agent1_interpretation_results_4industry.csv  # Agent #1 outputs, incl. Stage 1/3 diagnostic fields (Step 5)
+│   ├── agent2_consulting_reports_4industry.csv      # Agent #2 consulting reports (Step 6)
+│   └── agent3_ensemble_results_4industry.csv        # Agent #3 final grades (Step 7)
 │
+├── results/
+│   ├── model/                                       # Trained model artifacts (base_model_final_full.pkl, thresholds, feature lists)
+│   ├── table/                                       # Summary tables (industry ranking, winsorization log, ablation stats, human-review queue)
+│   ├── figures/                                     # figure5_tsne_visualization_4industry.png, figure6_quality_evaluation_4industry.png
+│   └── reports/                                     # Individual Markdown consulting reports, one per firm
+│
+├── .env                                              # API keys and model configuration (not committed)
 ├── .gitignore
 ├── LICENSE
 └── README.md
@@ -76,6 +104,7 @@ pip install -r requirements.txt
 | XGBoost | 1.7.6 |
 | Optuna | 3.2.0 |
 | DiCE-ML | 0.9 |
+| imbalanced-learn | latest |
 | openai | latest |
 
 ### Experimental Environment
@@ -85,107 +114,137 @@ pip install -r requirements.txt
 | CPU | Intel Core i5 |
 | RAM | 128 GB |
 | GPU | NVIDIA RTX 4060Ti |
-| LLM | GPT-4o-mini (gpt-4o-mini-2024-07-18) |
+| LLM (narrative generation) | GPT-4o-mini |
+| LLM (Agent #1 Stage 3 experimental audit) | GPT-4o |
 
 ---
 
 ## Data
 
-The dataset is sourced from **AI Hub** (aihub.or.kr), constructed with support from the National Information Society Agency (NIA) under the Ministry of Science and ICT, Republic of Korea.
+The dataset is sourced from **AI Hub** (aihub.or.kr), constructed with
+support from the National Information Society Agency (NIA) under the
+Ministry of Science and ICT, Republic of Korea.
 
-- **Target variable**: Corporate bankruptcy within 12 months (`PERF_12M`), reference date July 2022
-- **Industry**: Wholesale and commission trade (G46, KIC standard)
-- **Full dataset**: 15,482 firms (266 bankruptcies, ~1.72% bankruptcy rate)
-- **After NearMiss undersampling**: 532 firms (266 : 266, balanced)
-- **Features used**: 64 financial and non-financial variables
+- **Target variable**: Corporate bankruptcy within 12 months (`PERF_12M`),
+  reference date July 2022
+- **Full corpus**: 150,000 firms, all industries and audit classifications
+  (no industry filtering — see *Methodological Notes*)
+- **After sentinel-value cleanup and accounting-validity filtering**: 147,724
+  firms retained, 2,070 bankruptcies
+- **4-industry subset used for CF generation and the multi-agent pipeline**:
+  G46 (wholesale trade), G47 (retail trade), L68 (real estate), F42
+  (construction) — selected as the four highest bankruptcy-count industries
+  with sufficient minority-class samples for stable 1:1 NearMiss balancing
+- **Features used**: 62 ratio-transformed financial variables (converted
+  from 64 raw variables; absolute balance-sheet and income-statement figures
+  were re-expressed as ratios to total assets or revenue, or as
+  year-over-year growth rates, to prevent the model from confounding firm
+  scale with bankruptcy risk)
 
-> ⚠️ Due to AI Hub usage restrictions, only an anonymized sample dataset is provided in this repository.
+> ⚠️ Due to AI Hub usage restrictions, only an anonymized sample dataset is
+> provided in this repository.
 > Full dataset access: [https://www.aihub.or.kr](https://www.aihub.or.kr)
 
 ---
 
 ## Quick Start
 
-### 1. Set your OpenAI API Key
+### 1. Set your API keys
 
-```python
-import openai
-openai.api_key = "YOUR_OPENAI_API_KEY"
+Create a `.env` file in the project root:
+
+```
+OPENAI_API_KEY=your_openai_api_key
+LLM_MODEL=gpt-4o-mini
+LLM_MODEL_STAGE3_AUDIT=gpt-4o
 ```
 
 ### 2. Run Notebooks in Order
 
 | Step | Notebook | Description | Key Output |
 |---|---|---|---|
-| 1 | `Step1_Preprocessing` | NearMiss undersampling, feature selection | Balanced dataset (532 firms) |
-| 2 | `Step2_Modeling` | XGBoost training + Optuna hyperparameter tuning | AUC 0.9710 / F1 0.9307 |
-| 3 | `Step3_DiCE` | CF generation with Immutable Features constraint | 1,064 CF candidates |
-| 4 | `Step4_evaluate_single_cf` | Quality Score-based best CF selection | 266 optimal CFs (−67.7% Proximity) |
-| 5 | `Step5_Agent #1` | CF Quality Interpreter | Business implication JSON outputs |
-| 6 | `Step6_Agent #2` | Consulting Report Generator (RAG + Logic Guardrail) | 266 structured consulting reports |
-| 7 | `Step7_Agent #3` | Ensemble QA Evaluator (MoE, 6 personas) | Pass / Conditional Pass / Reject grades |
-| 8 | `Step8_Generate_Figure3` | t-SNE visualisation of recourse paths | Figure 5 in the paper |
+| 1 | `Step1_Preprocessing` | Sentinel cleanup, ratio conversion, outlier filtering (full corpus, no industry filter) | 147,724-firm cleaned dataset |
+| 2 | `Step2_Modeling` | XGBoost training + Optuna hyperparameter tuning | AUC 0.9885 |
+| 3 | `Step3_DiCE` | CF generation, 4-industry subset, Immutable Features constraint | 829 target firms, 640 successful (77.2%) |
+| 3B | `Step3B_CF_Selection_Ablation` | Compares 3 CF-selection strategies (A/B/C) on the same candidate pool | Statistically significant improvement for Quality-Score selection (Condition C) |
+| 4 | `Step4_evaluate_single_cf` | Quality Score-based best CF selection + physical-validity gate | 542 optimal, physically-valid CFs |
+| 5 | `Step5_Agent1` | CF Quality Interpreter, industry personas, directional guardrail | Structured interpretation + Pass/Warning label |
+| 6 | `Step6_Agent2` | Consulting Report Generator (Logic Guardrail + industry personas) | 542 structured consulting reports |
+| 7 | `Step7_Agent3` | Ensemble QA Evaluator (MoE, 6 personas; CF Alignment = Verify-then-Judge) | Pass / Conditional Pass / Reject grades |
+| 8 | `Step8_Generate_Figure5` | t-SNE visualisation, 4-industry, actual-model-probability coloring | Figure 5 |
+| 9 | `Step9_Generate_Figure6` | Quality evaluation results visualisation | Figure 6 |
 
 ---
 
 ## Framework
 
 ```
-[Rejected Firm]
+[Rejected Firm, 4 industries: G46/G47/L68/F42]
       │
       ▼
 ┌─────────────────────────────────────────┐
 │              PHASE 1                    │
 │  Step 2: XGBoost Bankruptcy Predictor   │
-│  (AUC: 0.9710 / F1: 0.9307)            │
+│  (AUC: 0.9885, full 150K-firm corpus)  │
 │       ↓                                 │
-│  Step 3: DiCE CF Generation             │
+│  Step 3: DiCE CF Generation              │
 │  (Genetic Algorithm +                   │
 │   Immutable Features Constraint)        │
-│  → n = 1,064 CF candidates              │
+│  → 829 target firms, 640 successful     │
 │       ↓                                 │
 │  Step 4: Quality Score Selection        │
 │  (Validity / Proximity / Sparsity /     │
-│   Realism / Robustness)                 │
-│  → n = 266 best CFs selected            │
+│   Realism / Robustness +                │
+│   physical-validity gate)               │
+│  → 542 optimal, valid CFs               │
 └─────────────────────────────────────────┘
       │ Optimal CF Scenario (per firm)
       ▼
 ┌─────────────────────────────────────────┐
 │              PHASE 2                    │
 │  Step 5: Agent #1 Interpreter           │
-│  (Numerical → Business Implication)     │
-│  Output: structured JSON                │
+│  (Industry personas + directional       │
+│   guardrail; Numerical → Business        │
+│   Implication)                          │
 │       ↓                                 │
 │  Step 6: Agent #2 Report Generator      │
-│  (Logic Guardrail + RAG)                │
+│  (Logic Guardrail + industry personas)  │
 │  Output: 6-section consulting report    │
 │       ↓                                 │
 │  Step 7: Agent #3 Ensemble QA           │
-│  (Mixture of Experts, 6 Personas)       │
+│  (Mixture of Experts, 6 Personas;       │
+│   CF Alignment = Verify-then-Judge)     │
 └─────────────────────────────────────────┘
       │
       ▼
-[Pass (33.8%) → Deliver to Client]
-[Conditional Pass (45.1%) → Human-in-the-Loop Verification]
-[Reject (21.1%) → Feedback to Agent #2]
+[Pass (24.5%) → Deliver to Client]
+[Conditional Pass (51.7%) → Human-in-the-Loop Verification]
+[Reject (23.8%) → Feedback to Agent #2]
 ```
 
 ---
 
 ## Immutable Features Constraint
 
-The following 8 variables are fixed as **Immutable Features** during CF optimisation, as they represent prior-year financial figures that cannot be retroactively altered:
+Because financial variables were converted to ratios and growth rates
+(Step 1), the Immutable Features constraint is now defined over five
+**year-over-year growth-rate variables**, rather than the original 8
+prior-period absolute-value variables. The prior-year figure anchoring each
+growth rate is a fixed historical fact; only the current-period component
+that produces the growth rate may vary during CF optimisation.
 
 | Variable | Description |
 |---|---|
-| FN1_11_1 | Prior-year accounts receivable (전기 매출채권) |
-| FN1_13_1 | Prior-year total assets (전기 자산총계) |
-| FN2_1_1 | Prior-year revenue (전기 매출액) |
-| FN2_10_1 | Prior-year net income (전기 당기순이익) |
-| + 4 additional prior-year variables | — |
+| `asset_growth_rate` | Total asset growth rate |
+| `revenue_growth_rate` | Revenue growth rate |
+| `operating_income_growth` | Operating income growth rate |
+| `net_income_growth` | Net income growth rate |
+| `equity_growth_rate` | Equity growth rate |
 
-Applying this constraint reduces Proximity by **87.5%** in the illustrative case (0.008 → 0.001) and shifts the Agent #1 feasibility assessment from WARNING to PASS by restricting the search to present-period, operationally actionable variables.
+Across the full 3,316-CF-candidate pool generated for the 4-industry
+ablation, zero candidates violated this constraint beyond floating-point
+noise (~1e-6, below the 1e-3 tolerance used for violation detection),
+confirming the constraint holds under genetic-algorithm optimisation.
 
 ---
 
@@ -198,10 +257,17 @@ $$\text{Quality Score} = \frac{5 \times \text{Validity} + (1 - \text{Proximity})
 | Metric | Definition | Business Meaning |
 |---|---|---|
 | Validity | CF meets the model's approval threshold | Underwriting approvability guaranteed |
-| Proximity | L1 distance between original and CF | Minimises implementation cost |
+| Proximity | L1 distance between original and CF (normalized space) | Minimises implementation cost |
 | Sparsity | Share of variables left unchanged | Focuses attention on key levers |
-| Realism | CF lies within solvent-firm data manifold (Isolation Forest) | Excludes statistical outliers |
+| Realism | CF lies within solvent-firm data manifold (Isolation Forest, fit on solvent firms only) | Excludes statistical outliers |
 | Robustness | Approval prediction holds under small noise | Resilient to market fluctuation |
+
+An ablation study (`Step3B`) compares three selection strategies over the
+same 3,316-candidate pool: no-constraint random selection (A), constrained
+random selection (B), and constrained Quality-Score selection (C, proposed).
+Condition C showed statistically significant improvements over both A and B
+across Proximity, Sparsity, Realism, and composite Quality Score
+(Wilcoxon signed-rank test, all p < 0.01).
 
 ---
 
@@ -209,45 +275,124 @@ $$\text{Quality Score} = \frac{5 \times \text{Validity} + (1 - \text{Proximity})
 
 | Persona | Evaluation Criteria | Weight |
 |---|---|---|
-| CF Alignment | Numerical consistency with original CF data | 25% |
+| CF Alignment | Numerical consistency with original CF data (Verify-then-Judge design — see below) | 25% |
 | Actionability | Specificity and immediate executability of recommendations | 25% |
 | Business Insight | Strategic depth beyond simple numerical listing | 20% |
 | Logic & Flow | Logical coherence and causal validity | 15% |
 | Completeness | Coverage of all 6 required report sections | 10% |
 | Clarity | Accessibility of language for executive readers | 5% |
 
-**Grade thresholds** (distribution-calibrated across 266 reports):
+**Grade thresholds** (fixed rule, applied consistently across all reports):
 
-| Grade | Score Range | Share | Deployment |
+| Grade | Score Range | Share (4-industry, n=542) | Deployment |
 |---|---|---|---|
-| **Pass** | > 3.60 | 33.8% (n = 90) | Deliver directly to client |
-| **Conditional Pass** | 3.30 – 3.60 | 45.1% (n = 120) | Human numerical verification required |
-| **Reject** | ≤ 3.30 | 21.1% (n = 56) | Regenerated via Agent #2 feedback loop |
+| **Pass** | ≥ 3.60 | 24.5% (n = 133) | Deliver directly to client |
+| **Conditional Pass** | 3.30 – 3.60 | 51.7% (n = 280) | Human numerical verification required |
+| **Reject** | < 3.30 | 23.8% (n = 129) | Regenerated via Agent #2 feedback loop |
+
+### CF Alignment: Verify-then-Judge
+
+The CF Alignment dimension was found to score near a fixed ~2.0 regardless
+of report grade when a single LLM call handled numeric extraction,
+ground-truth comparison, and scoring together. This was addressed by
+splitting the evaluation into three stages:
+
+1. **Extractor (LLM)** — pulls every numeric value from the report, with no
+   judgment about correctness.
+2. **Deterministic Matcher (pure Python)** — compares extracted values
+   against ground-truth CF targets (matched to the same top-10-by-magnitude
+   variables Agent #2 was actually given) within a numerical tolerance. No
+   LLM is involved in this comparison.
+3. **Judge (deterministic rubric)** — converts the computed match rate into
+   a 1-5 score via a fixed lookup rule, again without LLM involvement.
+
+This redesign raised mean CF Alignment from ~2.0 (single-call baseline) to
+**3.05** overall, with clear differentiation by grade (Pass 4.10 /
+Conditional Pass 3.01 / Reject 2.07) — restoring CF Alignment as an
+informative evaluation dimension rather than a near-constant score.
+
+A further experimental Stage 3 (an independent, higher-tier-model audit
+intended to catch narrative bias and numeric-direction misstatements) was
+evaluated but not adopted into the final pipeline: manual review found that
+most of its flagged cases were false positives (stylistic paraphrases
+misidentified as errors), and in at least one case the audit's own suggested
+correction introduced an inaccuracy absent from the original text. This
+finding is retained as evidence that human verification remains necessary
+even where a dedicated LLM audit step is added, rather than assuming
+additional AI verification layers resolve numeric-interpretation limitations
+on their own.
 
 ---
 
 ## Logic Guardrail
 
-Without the guardrail, the LLM applies general financial heuristics that can contradict the CF instruction. For example:
+Without the guardrail, the LLM applies general financial heuristics that can
+contradict the CF instruction. For example:
 
 | | Without Guardrail | With Guardrail |
 |---|---|---|
-| **Scenario** | Short-term borrowings: 17k → 136k (+685%) | Short-term borrowings: 17k → 136k (+685%) |
-| **Interpretation** | Debt has increased; repay immediately. *(directional error)* | Strategic borrowing expansion to overcome the short-term liquidity crisis. *(causally consistent)* |
+| **Scenario** | Net Borrowings ratio: 0.50 → -0.50 (-199.4%) | Net Borrowings ratio: 0.50 → -0.50 (-199.4%) |
+| **Interpretation** | Debt has decreased; may be a sign of reduced financing capacity. *(directional error)* | Net Borrowings shift must be interpreted as securing funding rather than debt repayment. *(causally consistent — verified in Agent #2 output)* |
 
-The guardrail injects a direction rule and RAG-retrieved firm context before generation, overriding the default heuristic in all 266 cases.
+The guardrail injects a direction rule and industry-specific context before
+generation, overriding the default heuristic. A companion **directional
+guardrail** in Agent #1 (Step 5) similarly prevents the LLM from
+misinterpreting which direction of the Proximity and Sparsity metrics is
+favorable (e.g., correctly treating a low Proximity value as a *positive*
+signal, not a risk indicator).
 
 ---
 
-## Representative Cases (Appendix)
+## Industry-Specific Personas
 
-| Grade | Case ID | Score | Core Strategy |
-|---|---|---|---|
-| Pass | 92329 | 3.35 | Asset augmentation & non-operating expense reduction with milestones |
-| Conditional Pass | 146878 | 2.95 | Liquidity enhancement via idle-asset disposal; roadmap requires targeted verification |
-| Reject | 93760 | 2.10 | Blocked: physically impossible negative-billion borrowings figure detected |
+Both Agent #1 and Agent #2 apply a persona tailored to the target firm's
+industry, balancing sector-typical risk factors against sector-typical
+mitigating factors, rather than a single fixed "20-year wholesale
+underwriter" persona applied uniformly:
 
-Full verbatim reports for all three cases are reproduced in the paper Appendix.
+| Industry (SIC) | Risk Factors | Mitigating Factors |
+|---|---|---|
+| G46 (Wholesale) | Elevated accounts-receivable exposure, inventory concentration risk | Established trade-credit relationships, inventory liquidation/renegotiation within 1-2 quarters |
+| G47 (Retail) | Thinner margins, high inventory turnover pressure | Faster cash conversion cycles, frequent pricing/inventory adjustment |
+| L68 (Real Estate) | Asset-heavy balance sheets, illiquid property holdings | Substantial collateral value supporting refinancing or partial disposal |
+| F42 (Construction) | Project-based cash-flow volatility, contract-completion risk | Milestone-based billing, accelerable retention receivables |
+
+---
+
+## Methodological Notes
+
+- **Sentinel-value contamination**: The raw dataset contained a sentinel
+  value (≈ -7.77778e13) present, at varying rates (0.003%–6.62% of rows),
+  in nearly every financial variable — almost certainly a rescaled
+  missing-data placeholder from an upstream encoding step. Left untreated,
+  this value propagated into ratio denominators and was selected by DiCE's
+  genetic algorithm as a legitimate candidate value, producing physically
+  nonsensical counterfactuals. This is detected and imputed (column median)
+  at the start of Step 1, before any other processing.
+- **NearMiss ordering and evaluation caveat**: NearMiss undersampling is
+  applied to the full dataset prior to train/test partitioning (Step 2),
+  consistent with the methodology used elsewhere in this line of work — this
+  means the held-out test set is itself NearMiss-balanced and does not
+  reflect the corpus's original ~1:70 class ratio. A leakage-corrected
+  variant (NearMiss applied to the training fold only, after partitioning,
+  preserving the original ratio in the test set) was evaluated and showed
+  substantially lower discriminative performance, suggesting the synthetic
+  dataset's minority-class signal may not generalize as strongly to an
+  untouched, class-imbalanced test set as the reported metrics might imply.
+  This is treated as a limitation of the underlying synthetic data's
+  fidelity, not of the recourse framework, and directly motivates the
+  Human-in-the-Loop design in Phase 2.
+- **DiCE success rate**: Prior to sentinel-value cleanup, DiCE achieved a
+  100% CF-generation success rate — later found to be an artifact of the
+  sentinel value providing the genetic algorithm with a numerically
+  "convenient" (but physically meaningless) shortcut solution. After
+  cleanup, the success rate is 77.2% (640/829), which we interpret as a more
+  faithful measure of how often a financially plausible recourse path exists
+  within the model's decision boundary.
+- **Industry selection**: The 4 industries were selected by bankruptcy count
+  (not rate) among all SIC codes in the corpus, subject to a sample-size cutoff
+  (C10, the fifth-ranked industry, was excluded for having too few
+  post-balancing bankrupt-firm observations relative to the other four).
 
 ---
 
