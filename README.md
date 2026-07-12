@@ -45,7 +45,7 @@ The framework comprises two complementary phases:
 
 | Metric | Result |
 |---|---|
-| Bankruptcy prediction model | AUC 0.9885 (NearMiss applied prior to split, consistent with prior work on this dataset; see *Methodological Notes* below for a leakage-corrected comparison) |
+| Bankruptcy prediction model | AUC 0.9390 (NearMiss applied prior to split, consistent with prior work on this dataset; see *Methodological Notes* below for a leakage-corrected comparison) |
 | CF generation success rate (post data-cleaning) | 77.2% (640/829 firms across 4 industries) |
 | Physically-valid, optimal CFs selected | 542 firms |
 | Consulting reports usable in practice (Pass + Conditional Pass) | 76.2% (413/542) |
@@ -170,7 +170,7 @@ LLM_MODEL_STAGE3_AUDIT=gpt-4o
 | Step | Notebook | Description | Key Output |
 |---|---|---|---|
 | 1 | `Step1_Preprocessing` | Sentinel cleanup, ratio conversion, outlier filtering (full corpus, no industry filter) | 147,724-firm cleaned dataset |
-| 2 | `Step2_Modeling` | XGBoost training + Optuna hyperparameter tuning | AUC 0.9885 |
+| 2 | `Step2_Modeling` | XGBoost training + Optuna hyperparameter tuning | AUC 0.9390 |
 | 3 | `Step3_DiCE` | CF generation, 4-industry subset, Immutable Features constraint | 829 target firms, 640 successful (77.2%) |
 | 3B | `Step3B_CF_Selection_Ablation` | Compares 3 CF-selection strategies (A/B/C) on the same candidate pool | Statistically significant improvement for Quality-Score selection (Condition C) |
 | 4 | `Step4_evaluate_single_cf` | Quality Score-based best CF selection + physical-validity gate | 542 optimal, physically-valid CFs |
@@ -192,7 +192,7 @@ LLM_MODEL_STAGE3_AUDIT=gpt-4o
 ┌─────────────────────────────────────────┐
 │              PHASE 1                    │
 │  Step 2: XGBoost Bankruptcy Predictor   │
-│  (AUC: 0.9885, full 150K-firm corpus)  │
+│  (AUC: 0.9390, full 150K-firm corpus)  │
 │       ↓                                 │
 │  Step 3: DiCE CF Generation              │
 │  (Genetic Algorithm +                   │
@@ -248,7 +248,7 @@ that produces the growth rate may vary during CF optimisation.
 | `net_income_growth` | Net income growth rate |
 | `equity_growth_rate` | Equity growth rate |
 
-Across the full 3,316-CF-candidate pool generated for the 4-industry
+Across the full 2,443-CF-candidate pool generated for the 4-industry
 ablation, zero candidates violated this constraint beyond floating-point
 noise (~1e-6, below the 1e-3 tolerance used for violation detection),
 confirming the constraint holds under genetic-algorithm optimisation.
@@ -270,7 +270,7 @@ $$\text{Quality Score} = \frac{5 \times \text{Validity} + (1 - \text{Proximity})
 | Robustness | Approval prediction holds under small noise | Resilient to market fluctuation |
 
 An ablation study (`Step3B`) compares three selection strategies over the
-same 3,316-candidate pool: no-constraint random selection (A), constrained
+same 2,443-candidate pool: no-constraint random selection (A), constrained
 random selection (B), and constrained Quality-Score selection (C, proposed).
 Condition C showed statistically significant improvements over both A and B
 across Proximity, Sparsity, Realism, and composite Quality Score
